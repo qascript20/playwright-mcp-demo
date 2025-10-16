@@ -2,7 +2,9 @@ pipeline {
     agent {
         docker {
             image 'mcr.microsoft.com/playwright:v1.55.1-focal'
-            args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+            args '--user root -v /var/run/docker.sock:/var/run/docker.sock --privileged'
+            // Add this to ensure Docker is available
+            reuseNode true
         }
     }
     
@@ -223,20 +225,22 @@ pipeline {
     
     post {
         always {
-            script {
-                echo "🧹 Cleaning up Docker environment"
-            }
-            
-            // Clean up large files but keep reports
-            sh '''
-                # Remove node_modules to save space (keep for failed builds debugging)
-                if [ "${currentBuild.result}" = "SUCCESS" ]; then
-                    rm -rf node_modules
-                fi
+            node {
+                script {
+                    echo "🧹 Cleaning up Docker environment"
+                }
                 
-                # Clean up temporary files
-                rm -rf /tmp/.X* /tmp/core* || true
-            '''
+                // Clean up large files but keep reports
+                sh '''
+                    # Remove node_modules to save space (keep for failed builds debugging)
+                    if [ "${BUILD_RESULT:-UNKNOWN}" = "SUCCESS" ]; then
+                        rm -rf node_modules || true
+                    fi
+                    
+                    # Clean up temporary files
+                    rm -rf /tmp/.X* /tmp/core* || true
+                '''
+            }
         }
         
         success {
@@ -253,24 +257,26 @@ pipeline {
         }
         
         failure {
-            script {
-                echo "❌ Pipeline failed!"
+            node {
+                script {
+                    echo "❌ Pipeline failed!"
+                }
+                
+                // Capture additional debug information
+                sh '''
+                    echo "=== Docker Environment Debug ==="
+                    df -h || true
+                    free -h || true
+                    ps aux | head -20 || true
+                    
+                    echo "=== Playwright Debug ==="
+                    find . -name "*.log" -o -name "*error*" | head -10 | xargs cat || true
+                    
+                    echo "=== Container Info ==="
+                    cat /etc/os-release || true
+                    which node npm npx || true
+                '''
             }
-            
-            // Capture additional debug information
-            sh '''
-                echo "=== Docker Environment Debug ==="
-                df -h || true
-                free -h || true
-                ps aux | head -20 || true
-                
-                echo "=== Playwright Debug ==="
-                find . -name "*.log" -o -name "*error*" | head -10 | xargs cat || true
-                
-                echo "=== Container Info ==="
-                cat /etc/os-release || true
-                which node npm npx || true
-            '''
             
             // Send failure notification (configure as needed)
             // slackSend(
