@@ -178,7 +178,7 @@ pipeline {
                     def junitFile = 'test-results/results.xml'
                     if (fileExists(junitFile)) {
                         echo "Publishing JUnit test results..."
-                        publishTestResults testResultsPattern: junitFile
+                        junit testResultsPattern: junitFile
                     } else {
                         echo "⚠️ JUnit results file not found: ${junitFile}"
                     }
