@@ -12,6 +12,7 @@ This project demonstrates automated end-to-end testing using [Playwright](https:
 - [Running Tests](#running-tests)
 - [Browser Configuration](#browser-configuration)
 - [Test Reports](#test-reports)
+- [CI/CD with Jenkins](#cicd-with-jenkins)
 - [Contributing](#contributing)
 
 ## 🎯 Overview
@@ -24,12 +25,20 @@ The tests are written in TypeScript and utilize Playwright's cross-browser testi
 
 ## 🛠 Prerequisites
 
-Before running the tests, ensure you have the following installed:
-
+### For Local Development:
 - **Node.js** (version 18 or higher)
 - **npm** or **yarn**
 
+### For Jenkins CI/CD:
+- **Docker** (required on Jenkins server/agents)
+- **Jenkins** with Docker Pipeline plugin
+
+### Optional (for Docker testing locally):
+- **Docker Desktop** (if you want to test the Jenkins environment locally)
+
 ## 📦 Installation
+
+### Local Development Setup (No Docker Required)
 
 1. Clone the repository:
 ```bash
@@ -45,6 +54,16 @@ npm install
 3. Install Playwright browsers:
 ```bash
 npx playwright install
+```
+
+### Optional: Docker Testing Setup
+
+If you want to test the same environment as Jenkins locally:
+
+1. Install Docker Desktop
+2. Test the setup:
+```bash
+./test-docker-setup.sh
 ```
 
 ## 📁 Project Structure
@@ -146,6 +165,46 @@ The report includes:
 - Screenshots and videos of failures
 - Trace files for debugging
 - Performance metrics
+
+## 🚀 CI/CD with Jenkins
+
+This project includes a comprehensive Jenkinsfile that uses the official Playwright Docker image for consistent, reliable test execution in CI environments.
+
+### Jenkins Setup
+
+The pipeline uses the official Playwright Docker image: `mcr.microsoft.com/playwright:v1.55.1-focal`
+
+**Key Features:**
+- **Docker-based execution** for consistent environment
+- **Parameterized builds** with browser and test suite selection
+- **Parallel execution** capabilities
+- **Comprehensive reporting** with HTML and JUnit formats
+- **Artifact archiving** for debugging failed tests
+
+**Pipeline Parameters:**
+- `BROWSER`: Choose browser (all, chromium, firefox, webkit, mobile-chrome)
+- `TEST_SUITE`: Select test suite (all, booking, login, checkout, responsive)
+- `HEADED_MODE`: Run in headed mode (disabled in Docker)
+- `GREP_PATTERN`: Run tests matching specific patterns
+
+**Required Jenkins Plugins:**
+- Docker Pipeline Plugin
+- HTML Publisher Plugin
+- JUnit Plugin
+- Pipeline Plugin
+
+**Jenkins Configuration:**
+1. Ensure Docker is available on Jenkins agents
+2. Create a new Pipeline job
+3. Point to your repository containing the Jenkinsfile
+4. Configure build parameters as needed
+
+The pipeline automatically:
+- Sets up the Playwright environment
+- Installs dependencies
+- Runs tests based on parameters
+- Generates HTML and JUnit reports
+- Archives test artifacts and traces
 
 ## 🔧 Configuration Options
 
