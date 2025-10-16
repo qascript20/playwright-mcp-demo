@@ -120,7 +120,6 @@ pipeline {
                         echo "🤖 Running tests in headless mode"
                     }
                     
-                    testCommand += " --reporter=html,junit"
                     echo "Executing: ${testCommand}"
                 }
                 
@@ -146,7 +145,7 @@ pipeline {
                         TEST_CMD="\$TEST_CMD --headed"
                     fi
                     
-                    TEST_CMD="\$TEST_CMD --reporter=html,junit --output-dir=test-results"
+                    TEST_CMD="\$TEST_CMD --output test-results"
                     
                     echo "Final command: \$TEST_CMD"
                     
