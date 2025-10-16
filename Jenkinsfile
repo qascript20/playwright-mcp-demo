@@ -1,7 +1,7 @@
 pipeline {
     agent {
         docker {
-            image 'mcr.microsoft.com/playwright:v1.55.1-focal'
+            image 'mcr.microsoft.com/playwright:v1.40.0-jammy'
             args '--user root -v /var/run/docker.sock:/var/run/docker.sock --privileged'
             // Add this to ensure Docker is available
             reuseNode true
@@ -157,7 +157,11 @@ pipeline {
                     }
                     
                     // Set CI environment variables
-                    withEnv(['CI=true', 'PLAYWRIGHT_HTML_REPORT=playwright-report']) {
+                    withEnv([
+                        'CI=true', 
+                        'PLAYWRIGHT_HTML_REPORT=playwright-report',
+                        'PLAYWRIGHT_JUNIT_OUTPUT_NAME=test-results/results.xml'
+                    ]) {
                         sh """
                             # Create reports directory
                             mkdir -p test-results
@@ -181,13 +185,31 @@ pipeline {
                                 TEST_CMD="\$TEST_CMD --grep='${params.GREP_PATTERN}'"
                             fi
                             
-                            # Add reporter and output directory
-                            TEST_CMD="\$TEST_CMD --reporter=html,junit --output-dir=test-results"
+                            # Add headed mode if requested
+                            if [ "${params.HEADED_MODE}" = "true" ]; then
+                                TEST_CMD="\$TEST_CMD --headed"
+                            fi
                             
-                            echo "Executing: \$TEST_CMD"
+                            # Add reporter
+                            TEST_CMD="\$TEST_CMD --reporter=html,junit"
                             
-                            # Run the tests
-                            eval "\$TEST_CMD" || true
+                            echo "Final command: \$TEST_CMD"
+                            
+                            # Run the tests (allow failure to continue to report generation)
+                            set +e
+                            eval "\$TEST_CMD"
+                            TEST_EXIT_CODE=\$?
+                            set -e
+                            
+                            echo "Tests completed with exit code: \$TEST_EXIT_CODE"
+                            
+                            # List generated files for debugging
+                            echo "Generated files:"
+                            ls -la test-results/ || echo "No test-results directory"
+                            ls -la playwright-report/ || echo "No playwright-report directory"
+                            
+                            # Return the test exit code for pipeline status
+                            exit \$TEST_EXIT_CODE
                         """
                     }
                 }
