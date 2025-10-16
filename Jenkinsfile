@@ -1,27 +1,18 @@
 pipeline {
-    agent {
-        docker {
-            image 'mcr.microsoft.com/playwright:v1.40.0-jammy'
-            args '--user root -v /var/run/docker.sock:/var/run/docker.sock --privileged'
-            // Add this to ensure Docker is available
-            reuseNode true
-        }
+    agent any
+    
+    tools {
+        nodejs 'Node-18'  // Requires NodeJS plugin and Node-18 configured in Global Tool Configuration
     }
     
     environment {
-        NODE_VERSION = '18'
-        HOME = '/tmp'
-        PLAYWRIGHT_BROWSERS_PATH = '/ms-playwright'
+        CI = 'true'
+        PLAYWRIGHT_HTML_REPORT = 'playwright-report'
     }
     
     options {
-        // Keep builds for 30 days
         buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '50'))
-        
-        // Timeout the build after 30 minutes
         timeout(time: 30, unit: 'MINUTES')
-        
-        // Retry the build up to 2 times on failure
         retry(2)
     }
     
@@ -51,195 +42,167 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                timestamps {
-                    script {
-                        echo "🔄 Checking out code from ${env.BRANCH_NAME}"
-                    }
-                    checkout scm
+                script {
+                    echo "🔄 Checking out code from ${env.BRANCH_NAME}"
                 }
+                checkout scm
             }
         }
         
         stage('Setup Environment') {
             steps {
-                timestamps {
-                    script {
-                        echo "🐳 Setting up Docker environment with Playwright"
-                    }
-                    sh '''
-                        echo "Docker Environment Info:"
-                        echo "Operating System: $(uname -a)"
-                        echo "Node.js Version: $(node --version)"
-                        echo "NPM Version: $(npm --version)"
-                        echo "Playwright Version: $(npx playwright --version)"
-                        echo "Available Browsers:"
-                        ls -la /ms-playwright/ || echo "Browser directory not found"
-                        echo "CPU Info: $(nproc) cores"
-                        echo "Memory Info: $(free -h | grep '^Mem' || echo 'N/A')"
-                    '''
+                script {
+                    echo "🔧 Setting up Node.js environment for Playwright"
                 }
+                sh '''
+                    echo "Build Environment Info:"
+                    echo "Operating System: $(uname -a)"
+                    echo "Node.js Version: $(node --version)"
+                    echo "NPM Version: $(npm --version)"
+                    echo "Working Directory: $(pwd)"
+                    echo "User: $(whoami)"
+                    echo "CPU Info: $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 'Unknown')"
+                '''
             }
         }
         
         stage('Install Dependencies') {
             steps {
-                timestamps {
-                    script {
-                        echo "📚 Installing npm dependencies"
-                    }
-                    sh '''
-                        # Clean install for consistent builds
-                        npm ci
-                        
-                        # Verify installation
-                        npm list --depth=0
-                    '''
+                script {
+                    echo "📚 Installing npm dependencies"
                 }
+                sh '''
+                    npm ci
+                    npm list --depth=0
+                '''
             }
         }
         
-        stage('Verify Playwright Setup') {
+        stage('Install Playwright Browsers') {
             steps {
-                timestamps {
-                    script {
-                        echo "🌐 Verifying Playwright browser installation"
-                    }
-                    sh '''
-                        # Verify browsers are available
-                        echo "Checking Playwright browsers..."
-                        npx playwright install --dry-run || true
-                        
-                        # List available browsers
-                        echo "Available browsers in container:"
-                        find /ms-playwright -name "*chrome*" -o -name "*firefox*" -o -name "*webkit*" | head -10 || echo "Browser binaries not found in expected location"
-                        
-                        # Test browser launch (headless)
-                        echo "Testing browser launch..."
-                        timeout 30s npx playwright test --browser=chromium --list || echo "Browser test failed or no tests found"
-                    '''
+                script {
+                    echo "🌐 Installing Playwright browsers"
                 }
+                sh '''
+                    echo "Installing Playwright browsers..."
+                    npx playwright install
+                    
+                    echo "Playwright Version: $(npx playwright --version)"
+                    echo "Available test files:"
+                    npx playwright test --list || echo "No tests found or error listing tests"
+                '''
             }
         }
         
         stage('Run Tests') {
             steps {
-                timestamps {
-                    script {
-                        echo "🧪 Running Playwright tests in Docker container"
-                        
-                        // Build test command based on parameters
-                        def testCommand = "npx playwright test"
-                        
-                        // Add browser selection
-                        if (params.BROWSER != 'all') {
-                            testCommand += " --project=${params.BROWSER}"
-                        }
-                        
-                        // Add test suite selection
-                        if (params.TEST_SUITE != 'all') {
-                            testCommand += " ${params.TEST_SUITE}.spec.ts"
-                        }
-                        
-                        // Add grep pattern if specified
-                        if (params.GREP_PATTERN) {
-                            testCommand += " --grep='${params.GREP_PATTERN}'"
-                        }
-                        
-                        // Note: Headed mode not supported in Docker without X11
-                        if (params.HEADED_MODE) {
-                            echo "⚠️ Headed mode not supported in Docker environment. Running in headless mode."
-                        }
-                        
-                        // Add CI-specific options
-                        testCommand += " --reporter=html,junit"
-                        
-                        echo "Executing: ${testCommand}"
+                script {
+                    echo "🧪 Running Playwright tests"
+                    
+                    def testCommand = "npx playwright test"
+                    
+                    if (params.BROWSER != 'all') {
+                        testCommand += " --project=${params.BROWSER}"
                     }
                     
-                    // Set CI environment variables
-                    withEnv([
-                        'CI=true', 
-                        'PLAYWRIGHT_HTML_REPORT=playwright-report',
-                        'PLAYWRIGHT_JUNIT_OUTPUT_NAME=test-results/results.xml'
-                    ]) {
-                        sh """
-                            # Create reports directory
-                            mkdir -p test-results
-                            mkdir -p playwright-report
-                            
-                            # Build test command
-                            TEST_CMD="npx playwright test"
-                            
-                            # Add browser selection
-                            if [ "${params.BROWSER}" != "all" ]; then
-                                TEST_CMD="\$TEST_CMD --project=${params.BROWSER}"
-                            fi
-                            
-                            # Add test suite selection
-                            if [ "${params.TEST_SUITE}" != "all" ]; then
-                                TEST_CMD="\$TEST_CMD ${params.TEST_SUITE}.spec.ts"
-                            fi
-                            
-                            # Add grep pattern if specified
-                            if [ -n "${params.GREP_PATTERN}" ]; then
-                                TEST_CMD="\$TEST_CMD --grep='${params.GREP_PATTERN}'"
-                            fi
-                            
-                            # Add headed mode if requested
-                            if [ "${params.HEADED_MODE}" = "true" ]; then
-                                TEST_CMD="\$TEST_CMD --headed"
-                            fi
-                            
-                            # Add reporter
-                            TEST_CMD="\$TEST_CMD --reporter=html,junit"
-                            
-                            echo "Final command: \$TEST_CMD"
-                            
-                            # Run the tests (allow failure to continue to report generation)
-                            set +e
-                            eval "\$TEST_CMD"
-                            TEST_EXIT_CODE=\$?
-                            set -e
-                            
-                            echo "Tests completed with exit code: \$TEST_EXIT_CODE"
-                            
-                            # List generated files for debugging
-                            echo "Generated files:"
-                            ls -la test-results/ || echo "No test-results directory"
-                            ls -la playwright-report/ || echo "No playwright-report directory"
-                            
-                            # Return the test exit code for pipeline status
-                            exit \$TEST_EXIT_CODE
-                        """
+                    if (params.TEST_SUITE != 'all') {
+                        testCommand += " ${params.TEST_SUITE}.spec.ts"
                     }
+                    
+                    if (params.GREP_PATTERN) {
+                        testCommand += " --grep='${params.GREP_PATTERN}'"
+                    }
+                    
+                    if (params.HEADED_MODE) {
+                        testCommand += " --headed"
+                        echo "🖥️ Running tests in headed mode"
+                    } else {
+                        echo "🤖 Running tests in headless mode"
+                    }
+                    
+                    testCommand += " --reporter=html,junit"
+                    echo "Executing: ${testCommand}"
                 }
+                
+                sh """
+                    mkdir -p test-results
+                    mkdir -p playwright-report
+                    
+                    TEST_CMD="npx playwright test"
+                    
+                    if [ "${params.BROWSER}" != "all" ]; then
+                        TEST_CMD="\$TEST_CMD --project=${params.BROWSER}"
+                    fi
+                    
+                    if [ "${params.TEST_SUITE}" != "all" ]; then
+                        TEST_CMD="\$TEST_CMD ${params.TEST_SUITE}.spec.ts"
+                    fi
+                    
+                    if [ -n "${params.GREP_PATTERN}" ]; then
+                        TEST_CMD="\$TEST_CMD --grep='${params.GREP_PATTERN}'"
+                    fi
+                    
+                    if [ "${params.HEADED_MODE}" = "true" ]; then
+                        TEST_CMD="\$TEST_CMD --headed"
+                    fi
+                    
+                    TEST_CMD="\$TEST_CMD --reporter=html,junit --output-dir=test-results"
+                    
+                    echo "Final command: \$TEST_CMD"
+                    
+                    set +e
+                    eval "\$TEST_CMD"
+                    TEST_EXIT_CODE=\$?
+                    set -e
+                    
+                    echo "Tests completed with exit code: \$TEST_EXIT_CODE"
+                    ls -la test-results/ || echo "No test-results directory"
+                    ls -la playwright-report/ || echo "No playwright-report directory"
+                    
+                    exit \$TEST_EXIT_CODE
+                """
             }
         }
         
         stage('Generate Reports') {
             steps {
-                timestamps {
-                    script {
-                        echo "📊 Processing test reports"
+                script {
+                    echo "📊 Processing test reports"
+                    
+                    def junitFile = 'test-results/results.xml'
+                    if (fileExists(junitFile)) {
+                        echo "Publishing JUnit test results..."
+                        publishTestResults testResultsPattern: junitFile
+                    } else {
+                        echo "⚠️ JUnit results file not found: ${junitFile}"
                     }
                     
-                    // Publish JUnit test results
-                    publishTestResults testResultsPattern: 'test-results/results.xml'
+                    def htmlReportDir = 'playwright-report'
+                    def htmlReportFile = "${htmlReportDir}/index.html"
+                    if (fileExists(htmlReportFile)) {
+                        echo "Publishing HTML test report..."
+                        publishHTML([
+                            allowMissing: false,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: htmlReportDir,
+                            reportFiles: 'index.html',
+                            reportName: 'Playwright Test Report',
+                            reportTitles: 'Playwright Test Results'
+                        ])
+                    } else {
+                        echo "⚠️ HTML report not found: ${htmlReportFile}"
+                    }
                     
-                    // Archive HTML report
-                    publishHTML([
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'playwright-report',
-                        reportFiles: 'index.html',
-                        reportName: 'Playwright Test Report',
-                        reportTitles: 'Playwright Test Results'
-                    ])
-                    
-                    // Archive test artifacts
+                    echo "Archiving test artifacts..."
                     archiveArtifacts artifacts: 'test-results/**/*', allowEmptyArchive: true
                     archiveArtifacts artifacts: 'playwright-report/**/*', allowEmptyArchive: true
+                    
+                    sh '''
+                        echo "=== Generated Test Artifacts ==="
+                        find test-results -type f 2>/dev/null | head -20 || echo "No test-results files"
+                        find playwright-report -type f 2>/dev/null | head -20 || echo "No playwright-report files"
+                    '''
                 }
             }
         }
@@ -248,12 +211,9 @@ pipeline {
     post {
         always {
             script {
-                echo "🧹 Cleaning up Docker environment"
-                
-                // Clean up only if we're in an agent context
+                echo "🧹 Cleaning up workspace"
                 try {
                     sh '''
-                        # Remove node_modules to save space (keep for failed builds debugging)
                         if [ "${BUILD_RESULT:-UNKNOWN}" = "SUCCESS" ]; then
                             echo "Removing node_modules to save space..."
                             rm -rf node_modules || true
@@ -261,8 +221,7 @@ pipeline {
                             echo "Keeping node_modules for debugging failed build"
                         fi
                         
-                        # Clean up temporary files
-                        rm -rf /tmp/.X* /tmp/core* || true
+                        rm -rf /tmp/.X* /tmp/core* 2>/dev/null || true
                         echo "Cleanup completed"
                     '''
                 } catch (Exception e) {
@@ -275,45 +234,37 @@ pipeline {
             script {
                 echo "✅ Pipeline completed successfully!"
             }
-            
-            // Send success notification (configure as needed)
-            // slackSend(
-            //     channel: '#test-results',
-            //     color: 'good',
-            //     message: "✅ Playwright tests passed for ${env.JOB_NAME} #${env.BUILD_NUMBER}"
-            // )
         }
         
         failure {
             script {
                 echo "❌ Pipeline failed!"
-                
-                // Capture additional debug information (only if in agent context)
                 try {
                     sh '''
-                        echo "=== Docker Environment Debug ==="
-                        df -h || true
-                        free -h || true
-                        ps aux | head -20 || true
+                        echo "=== Environment Debug ==="
+                        echo "Node: ${NODE_NAME:-unknown}"
+                        echo "Workspace: $(pwd)"
+                        df -h . || true
+                        
+                        echo "=== System Resources ==="
+                        free -h 2>/dev/null || echo "free command not available"
+                        ps aux 2>/dev/null | head -20 || echo "ps command not available"
                         
                         echo "=== Playwright Debug ==="
-                        find . -name "*.log" -o -name "*error*" | head -10 | xargs cat || true
+                        find . -name "*.log" -o -name "*error*" 2>/dev/null | head -10 | xargs cat 2>/dev/null || echo "No error logs found"
                         
-                        echo "=== Container Info ==="
-                        cat /etc/os-release || true
-                        which node npm npx || true
+                        echo "=== Environment Info ==="
+                        uname -a || true
+                        which node npm npx 2>/dev/null || echo "Node tools location unknown"
+                        
+                        echo "=== Test Results Debug ==="
+                        ls -la test-results/ 2>/dev/null || echo "No test-results directory"
+                        ls -la playwright-report/ 2>/dev/null || echo "No playwright-report directory"
                     '''
                 } catch (Exception e) {
                     echo "Debug information gathering failed: ${e.getMessage()}"
                 }
             }
-            
-            // Send failure notification (configure as needed)
-            // slackSend(
-            //     channel: '#test-results',
-            //     color: 'danger',
-            //     message: "❌ Playwright tests failed for ${env.JOB_NAME} #${env.BUILD_NUMBER}\nCheck: ${env.BUILD_URL}"
-            // )
         }
         
         unstable {
