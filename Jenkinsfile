@@ -19,13 +19,13 @@ pipeline {
     parameters {
         choice(
             name: 'BROWSER',
-            choices: ['all', 'chromium', 'firefox', 'webkit', 'mobile-chrome'],
-            description: 'Select browser to run tests on'
+            choices: ['chromium', 'all', 'firefox', 'webkit', 'mobile-chrome'],
+            description: 'Select browser to run tests on (default: chromium only)'
         )
         choice(
             name: 'TEST_SUITE',
-            choices: ['all', 'booking', 'login', 'checkout', 'responsive'],
-            description: 'Select test suite to run'
+            choices: ['login', 'all', 'booking', 'checkout', 'responsive'],
+            description: 'Select test suite to run (default: login only)'
         )
         booleanParam(
             name: 'HEADED_MODE',
@@ -97,16 +97,19 @@ pipeline {
         stage('Run Tests') {
             steps {
                 script {
-                    echo "🧪 Running Playwright tests"
+                    echo "🧪 Running Playwright tests (default: login test only)"
                     
-                    def testCommand = "npx playwright test"
+                    def testCommand = "npx playwright test tests/login.spec.ts"
+                    
+                    // Override with different test suite if specified
+                    if (params.TEST_SUITE != 'login' && params.TEST_SUITE != 'all') {
+                        testCommand = "npx playwright test tests/${params.TEST_SUITE}.spec.ts"
+                    } else if (params.TEST_SUITE == 'all') {
+                        testCommand = "npx playwright test"
+                    }
                     
                     if (params.BROWSER != 'all') {
                         testCommand += " --project=${params.BROWSER}"
-                    }
-                    
-                    if (params.TEST_SUITE != 'all') {
-                        testCommand += " ${params.TEST_SUITE}.spec.ts"
                     }
                     
                     if (params.GREP_PATTERN) {
@@ -127,14 +130,18 @@ pipeline {
                     mkdir -p test-results
                     mkdir -p playwright-report
                     
-                    TEST_CMD="npx playwright test"
+                    # Default to login test for faster CI runs
+                    TEST_CMD="npx playwright test tests/login.spec.ts"
+                    
+                    # Override with different test suite if specified
+                    if [ "${params.TEST_SUITE}" != "login" ] && [ "${params.TEST_SUITE}" != "all" ]; then
+                        TEST_CMD="npx playwright test tests/${params.TEST_SUITE}.spec.ts"
+                    elif [ "${params.TEST_SUITE}" = "all" ]; then
+                        TEST_CMD="npx playwright test"
+                    fi
                     
                     if [ "${params.BROWSER}" != "all" ]; then
                         TEST_CMD="\$TEST_CMD --project=${params.BROWSER}"
-                    fi
-                    
-                    if [ "${params.TEST_SUITE}" != "all" ]; then
-                        TEST_CMD="\$TEST_CMD ${params.TEST_SUITE}.spec.ts"
                     fi
                     
                     if [ -n "${params.GREP_PATTERN}" ]; then
