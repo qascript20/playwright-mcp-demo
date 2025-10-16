@@ -225,21 +225,27 @@ pipeline {
     
     post {
         always {
-            node {
-                script {
-                    echo "🧹 Cleaning up Docker environment"
-                }
+            script {
+                echo "🧹 Cleaning up Docker environment"
                 
-                // Clean up large files but keep reports
-                sh '''
-                    # Remove node_modules to save space (keep for failed builds debugging)
-                    if [ "${BUILD_RESULT:-UNKNOWN}" = "SUCCESS" ]; then
-                        rm -rf node_modules || true
-                    fi
-                    
-                    # Clean up temporary files
-                    rm -rf /tmp/.X* /tmp/core* || true
-                '''
+                // Clean up only if we're in an agent context
+                try {
+                    sh '''
+                        # Remove node_modules to save space (keep for failed builds debugging)
+                        if [ "${BUILD_RESULT:-UNKNOWN}" = "SUCCESS" ]; then
+                            echo "Removing node_modules to save space..."
+                            rm -rf node_modules || true
+                        else
+                            echo "Keeping node_modules for debugging failed build"
+                        fi
+                        
+                        # Clean up temporary files
+                        rm -rf /tmp/.X* /tmp/core* || true
+                        echo "Cleanup completed"
+                    '''
+                } catch (Exception e) {
+                    echo "Cleanup failed: ${e.getMessage()}"
+                }
             }
         }
         
@@ -257,25 +263,27 @@ pipeline {
         }
         
         failure {
-            node {
-                script {
-                    echo "❌ Pipeline failed!"
-                }
+            script {
+                echo "❌ Pipeline failed!"
                 
-                // Capture additional debug information
-                sh '''
-                    echo "=== Docker Environment Debug ==="
-                    df -h || true
-                    free -h || true
-                    ps aux | head -20 || true
-                    
-                    echo "=== Playwright Debug ==="
-                    find . -name "*.log" -o -name "*error*" | head -10 | xargs cat || true
-                    
-                    echo "=== Container Info ==="
-                    cat /etc/os-release || true
-                    which node npm npx || true
-                '''
+                // Capture additional debug information (only if in agent context)
+                try {
+                    sh '''
+                        echo "=== Docker Environment Debug ==="
+                        df -h || true
+                        free -h || true
+                        ps aux | head -20 || true
+                        
+                        echo "=== Playwright Debug ==="
+                        find . -name "*.log" -o -name "*error*" | head -10 | xargs cat || true
+                        
+                        echo "=== Container Info ==="
+                        cat /etc/os-release || true
+                        which node npm npx || true
+                    '''
+                } catch (Exception e) {
+                    echo "Debug information gathering failed: ${e.getMessage()}"
+                }
             }
             
             // Send failure notification (configure as needed)
