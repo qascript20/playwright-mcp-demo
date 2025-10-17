@@ -5,11 +5,26 @@
   "directories": {
     "test": "tests"
   },
-  "scripts": {},
-  "keywords": [],
-  "author": "",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:ui": "npx playwright test --ui",
+    "test:debug": "npx playwright test --debug",
+    "test:chromium": "npx playwright test --project=chromium",
+    "test:firefox": "npx playwright test --project=firefox",
+    "test:webkit": "npx playwright test --project=webkit",
+    "test:mobile": "npx playwright test --project=mobile-chrome",
+    "test:booking": "npx playwright test booking.spec.ts",
+    "test:login": "npx playwright test login.spec.ts",
+    "test:checkout": "npx playwright test checkout.spec.ts",
+    "report": "npx playwright show-report",
+    "install-browsers": "npx playwright install",
+    "install-deps": "npx playwright install-deps"
+  },
+  "keywords": ["playwright", "testing", "e2e", "automation", "typescript"],
+  "author": "qascript20",
   "license": "ISC",
-  "description": "",
+  "description": "Playwright demo project for automated end-to-end testing with TypeScript",
   "devDependencies": {
     "@playwright/test": "^1.55.1",
     "@types/node": "^24.5.2"

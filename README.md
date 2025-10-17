@@ -2,6 +2,25 @@
 
 This project demonstrates automated end-to-end testing using [Playwright](https://playwright.dev/), a modern testing framework for web applications.
 
+## 🚀 Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Install browsers
+npm run install-browsers
+
+# Run tests with UI (interactive mode)
+npm run test:ui
+
+# Run all tests
+npm test
+
+# View test report
+npm run report
+```
+
 ## 📋 Table of Contents
 
 - [Overview](#overview)
@@ -38,38 +57,69 @@ The tests are written in TypeScript and utilize Playwright's cross-browser testi
 
 ## 📦 Installation
 
-### Local Development Setup (No Docker Required)
+### Local Development Setup
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/qascript20/playwright-mcp-demo.git
 cd "Playwright Demo"
 ```
 
-2. Install dependencies:
+2. Install Node.js dependencies:
 ```bash
 npm install
 ```
 
 3. Install Playwright browsers:
 ```bash
-npx playwright install
+npm run install-browsers
 ```
 
-### Optional: Docker Testing Setup
-
-If you want to test the same environment as Jenkins locally:
-
-1. Install Docker Desktop
-2. Test the setup:
+4. (Optional) Install system dependencies for browsers:
 ```bash
-./test-docker-setup.sh
+npm run install-deps
 ```
+
+### Quick Start
+
+After installation, verify your setup:
+
+```bash
+# Run a quick test to verify everything works
+npm run test:login
+
+# View the test report
+npm run report
+```
+
+### Troubleshooting
+
+If you encounter issues:
+
+1. **Browser installation problems:**
+```bash
+npm run install-deps
+```
+
+2. **Permission issues (macOS/Linux):**
+```bash
+sudo npm run install-deps
+```
+
+3. **Clear test artifacts:**
+```bash
+rm -rf test-results playwright-report
+```
+
+4. **Some tests fail on external sites:**
+   - The booking.spec.ts tests may occasionally fail due to changes on booking.com
+   - Login, checkout, and responsive tests should pass consistently as they test saucedemo.com
+   - This is expected behavior when testing against live websites
 
 ## 📁 Project Structure
 
 ```
-playwright-demo/
+Playwright Demo/
 ├── tests/                     # Main test directory
 │   ├── booking.spec.ts        # Flight booking tests (Booking.com)
 │   ├── checkout.spec.ts       # E-commerce checkout tests
@@ -80,11 +130,17 @@ playwright-demo/
 │   └── example.spec.ts        # Example test file
 ├── tests-examples/            # Example tests from Playwright
 │   └── demo-todo-app.spec.ts  # Todo app demo tests
-├── playwright-report/         # HTML test reports
-├── test-results/             # Test execution results and artifacts
+├── playwright-report/         # HTML test reports (generated)
+├── test-results/             # Test execution results and artifacts (generated)
 ├── playwright.config.js      # Playwright configuration
-└── package.json              # Project dependencies and scripts
+├── package.json              # Project dependencies and NPM scripts
+└── README.md                 # This documentation file
 ```
+
+**Key Files:**
+- `playwright.config.js` - Main configuration for browsers, devices, and test settings
+- `package.json` - Dependencies and convenient NPM scripts
+- `tests/*.spec.ts` - Individual test suites for different functionalities
 
 ## 🧪 Available Tests
 
@@ -106,36 +162,69 @@ playwright-demo/
 
 ## 🚀 Running Tests
 
-### Run all tests
+### Using NPM Scripts (Recommended)
+
+#### Run all tests
+```bash
+npm test
+```
+
+#### Run tests with visual interface
+```bash
+npm run test:ui
+```
+
+#### Run tests in headed mode (visible browser)
+```bash
+npm run test:headed
+```
+
+#### Debug tests
+```bash
+npm run test:debug
+```
+
+#### Run tests in specific browsers
+```bash
+npm run test:chromium    # Chrome/Chromium
+npm run test:firefox     # Firefox
+npm run test:webkit      # Safari/WebKit
+npm run test:mobile      # Mobile Chrome (Pixel 5)
+```
+
+#### Run specific test suites
+```bash
+npm run test:booking     # Flight booking tests
+npm run test:login       # Login functionality tests
+npm run test:checkout    # Checkout process tests
+```
+
+#### View test reports
+```bash
+npm run report
+```
+
+### Using Playwright CLI Directly
+
+#### Run all tests
 ```bash
 npx playwright test
 ```
 
-### Run a specific test file
+#### Run a specific test file
 ```bash
 npx playwright test booking.spec.ts
+npx playwright test login.spec.ts
+npx playwright test checkout.spec.ts
+npx playwright test responsive-login.spec.ts
 ```
 
-### Run tests in headed mode (visible browser)
+#### Run tests with specific options
 ```bash
-npx playwright test --headed
-```
-
-### Run tests in a specific browser
-```bash
-npx playwright test --project=chromium
-npx playwright test --project=firefox
-npx playwright test --project=webkit
-```
-
-### Run tests with debug mode
-```bash
-npx playwright test --debug
-```
-
-### Run tests on mobile devices
-```bash
-npx playwright test --project=mobile-chrome
+npx playwright test --headed           # Visible browser
+npx playwright test --debug            # Debug mode
+npx playwright test --project=firefox  # Specific browser
+npx playwright test --grep="login"     # Tests matching pattern
 ```
 
 ## 🌐 Browser Configuration
@@ -149,8 +238,18 @@ The project is configured to run tests across multiple browsers and devices:
 
 - **Mobile Devices:**
   - Pixel 5 (Mobile Chrome)
+  - iPhone 12 (Mobile Safari)
 
-Configuration details can be found in `playwright.config.js`.
+**Current Configuration Details:**
+- **Base URL**: `https://www.saucedemo.com`
+- **Test Directory**: `./tests`
+- **Output Directory**: `test-results`
+- **Parallel Execution**: Enabled for faster test runs
+- **Retries**: 2 retries on CI, 0 locally
+- **Tracing**: Enabled on first retry for debugging
+- **Workers**: 1 on CI, unlimited locally
+
+Configuration can be customized in `playwright.config.js`.
 
 ## 📊 Test Reports
 
@@ -216,21 +315,65 @@ Key configuration options in `playwright.config.js`:
 - **Base URL**: Default base URL for SauceDemo tests
 - **Reporter**: HTML reporter for detailed test results
 
+## 💻 Development Guide
+
+### Local Development Workflow
+
+1. **Start development with UI mode** (recommended for test development):
+```bash
+npm run test:ui
+```
+
+2. **Debug failing tests:**
+```bash
+npm run test:debug
+```
+
+3. **Run tests in headed mode** to see browser actions:
+```bash
+npm run test:headed
+```
+
+4. **Check test results:**
+```bash
+npm run report
+```
+
+### Available NPM Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm test` | Run all tests headlessly |
+| `npm run test:ui` | Open Playwright UI for interactive testing |
+| `npm run test:headed` | Run tests with visible browser |
+| `npm run test:debug` | Run tests in debug mode |
+| `npm run test:chromium` | Run tests only in Chrome |
+| `npm run test:firefox` | Run tests only in Firefox |
+| `npm run test:webkit` | Run tests only in Safari |
+| `npm run test:mobile` | Run tests on mobile Chrome |
+| `npm run test:booking` | Run only booking tests |
+| `npm run test:login` | Run only login tests |
+| `npm run test:checkout` | Run only checkout tests |
+| `npm run report` | View HTML test report |
+| `npm run install-browsers` | Install Playwright browsers |
+
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
 3. Write tests following the existing patterns
-4. Ensure all tests pass: `npm test`
-5. Submit a pull request
+4. Test your changes: `npm test`
+5. Ensure all tests pass locally
+6. Submit a pull request
 
 ### Test Writing Guidelines
 
 - Use descriptive test names that explain the expected behavior
 - Follow the Arrange-Act-Assert pattern
-- Add proper waits for dynamic content
-- Use data-testid attributes when possible for stable selectors
-- Include error handling for flaky elements
+- Add proper waits for dynamic content using `expect()` assertions
+- Use `page.getByRole()`, `page.getByText()`, or `page.getByTestId()` for reliable selectors
+- Include error handling and retry logic for flaky elements
+- Test on multiple browsers when possible
 
 ## 📝 Notes
 
