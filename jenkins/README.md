@@ -267,17 +267,88 @@ agent {
 }
 ```
 
-### Webhook Triggers
-Enable automatic builds on Git push:
+## Automated Triggers
+
+### SCM Polling (Enabled by Default)
+All Jenkinsfiles now include SCM polling to automatically detect repository changes:
+
+**Default Configuration:**
+- Polls every 5 minutes: `H/5 * * * *`
+- Automatically triggers builds when changes are detected
+- No additional configuration required
+
+**Polling Schedule Options:**
+
+```groovy
+// Every 5 minutes (default)
+pollSCM('H/5 * * * *')
+
+// Every 15 minutes
+pollSCM('H/15 * * * *')
+
+// Every hour
+pollSCM('H * * * *')
+
+// Every 30 minutes
+pollSCM('H/30 * * * *')
+
+// Every 2 hours
+pollSCM('H */2 * * *')
+```
+
+**Cron Syntax:**
+- `H` = Hash for even distribution across Jenkins instances
+- `*` = Any value
+- `/n` = Every n units
+- Format: `MINUTE HOUR DAY MONTH DAYOFWEEK`
+
+**How It Works:**
+1. Jenkins checks repository for new commits every 5 minutes
+2. If changes detected, automatically triggers a build
+3. Uses default parameters for automated builds
+4. Manual builds with custom parameters still available
+
+### Webhook Triggers (Alternative)
+For instant builds on Git push instead of polling:
+
 1. Go to job configuration
 2. Under **Build Triggers**, enable **GitHub hook trigger for GITScm polling**
-3. Configure webhook in GitHub repository settings
+3. Configure webhook in GitHub repository settings:
+   - URL: `http://your-jenkins-url/github-webhook/`
+   - Content type: `application/json`
+   - Events: Push events
+4. Remove or comment out `pollSCM` in Jenkinsfile to avoid redundant builds
 
 ### Scheduled Builds
-Add cron schedule in Jenkinsfile:
+Add cron schedule for time-based execution:
 ```groovy
 triggers {
-    cron('H 2 * * *') // Run daily at 2 AM
+    cron('H 2 * * *')    // Run daily at 2 AM
+    pollSCM('H/5 * * * *') // Also poll for changes
+}
+```
+
+**Common Schedule Examples:**
+```groovy
+// Daily at 2 AM
+cron('H 2 * * *')
+
+// Every weekday at 6 AM
+cron('H 6 * * 1-5')
+
+// Every 4 hours
+cron('H */4 * * *')
+
+// Monday and Friday at 8 AM
+cron('H 8 * * 1,5')
+```
+
+### Combining Triggers
+You can use multiple triggers together:
+```groovy
+triggers {
+    pollSCM('H/15 * * * *')  // Check for changes every 15 min
+    cron('H 2 * * *')         // Daily regression at 2 AM
 }
 ```
 
@@ -295,6 +366,22 @@ post {
 }
 ```
 
+## Disabling SCM Polling
+
+If you prefer manual builds or webhook triggers only:
+
+1. **Remove the triggers block** from Jenkinsfile:
+```groovy
+// Comment out or remove these lines:
+// triggers {
+//     pollSCM('H/5 * * * *')
+// }
+```
+
+2. **Or use webhook triggers instead** (see Webhook Triggers section above)
+
+3. **Manual builds only**: Simply remove the `triggers` block entirely
+
 ## Best Practices
 
 1. **Use `npm ci`** instead of `npm install` for deterministic builds
@@ -303,6 +390,9 @@ post {
 4. **Publish reports** for visibility into test results
 5. **Clean workspace** after build to save disk space
 6. **Use declarative pipeline** for better readability and maintainability
+7. **Choose appropriate polling interval** - balance between responsiveness and Jenkins load
+8. **Use webhooks for production** - more efficient than polling for active repositories
+9. **Combine scheduled builds with polling** - run comprehensive tests nightly, quick tests on changes
 
 ## Resources
 

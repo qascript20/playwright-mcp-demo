@@ -1,6 +1,17 @@
 pipeline {
     agent any
     
+    triggers {
+        // Poll SCM every 5 minutes for changes
+        pollSCM('H/5 * * * *')
+        
+        // Alternative: Check every 15 minutes
+        // pollSCM('H/15 * * * *')
+        
+        // Alternative: Check every hour
+        // pollSCM('H * * * *')
+    }
+    
     parameters {
         choice(
             name: 'BROWSER',

@@ -1,6 +1,11 @@
 pipeline {
     agent any
     
+    triggers {
+        // Poll SCM every 5 minutes for changes
+        pollSCM('H/5 * * * *')
+    }
+    
     tools {
         nodejs 'NodeJS'
     }
