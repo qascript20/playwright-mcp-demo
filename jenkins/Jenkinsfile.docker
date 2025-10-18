@@ -1,0 +1,73 @@
+pipeline {
+    agent {
+        docker {
+            image 'mcr.microsoft.com/playwright:v1.55.1-jammy'
+            args '-u root:root --ipc=host'
+        }
+    }
+    
+    environment {
+        CI = 'true'
+        HOME = "${WORKSPACE}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out code...'
+                checkout scm
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing Node.js dependencies...'
+                sh 'npm ci'
+            }
+        }
+        
+        stage('Run Playwright Tests') {
+            steps {
+                echo 'Running Playwright tests...'
+                sh 'npm run test'
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Publishing test results...'
+            
+            // Publish JUnit test results
+            junit testResults: 'test-results/results.xml', allowEmptyResults: true
+            
+            // Archive test artifacts
+            archiveArtifacts artifacts: 'test-results/**/*', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'playwright-report/**/*', allowEmptyArchive: true
+            
+            // Publish HTML report
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'playwright-report',
+                reportFiles: 'index.html',
+                reportName: 'Playwright Test Report',
+                reportTitles: 'Playwright Test Report'
+            ])
+        }
+        
+        success {
+            echo '✅ All tests passed successfully!'
+        }
+        
+        failure {
+            echo '❌ Tests failed. Check the Playwright Test Report for details.'
+        }
+        
+        cleanup {
+            echo 'Cleaning up workspace...'
+            cleanWs()
+        }
+    }
+}

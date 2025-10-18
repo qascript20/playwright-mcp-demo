@@ -1,0 +1,105 @@
+pipeline {
+    agent any
+    
+    tools {
+        nodejs 'NodeJS'
+    }
+    
+    environment {
+        CI = 'true'
+        HOME = "${WORKSPACE}"
+        PLAYWRIGHT_BROWSERS_PATH = "${WORKSPACE}/ms-playwright"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out code...'
+                checkout scm
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing Node.js dependencies...'
+                sh 'npm ci'
+            }
+        }
+        
+        stage('Install Playwright Browsers') {
+            steps {
+                echo 'Installing Playwright browsers...'
+                sh 'npx playwright install --with-deps chromium firefox webkit'
+            }
+        }
+        
+        stage('Run Playwright Tests in Parallel') {
+            parallel {
+                stage('Chromium Tests') {
+                    steps {
+                        echo 'Running tests on Chromium...'
+                        sh 'npm run test:chromium'
+                    }
+                }
+                
+                stage('Firefox Tests') {
+                    steps {
+                        echo 'Running tests on Firefox...'
+                        sh 'npm run test:firefox'
+                    }
+                }
+                
+                stage('WebKit Tests') {
+                    steps {
+                        echo 'Running tests on WebKit...'
+                        sh 'npm run test:webkit'
+                    }
+                }
+                
+                stage('Mobile Chrome Tests') {
+                    steps {
+                        echo 'Running tests on Mobile Chrome...'
+                        sh 'npm run test:mobile'
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Publishing test results...'
+            
+            // Publish JUnit test results
+            junit testResults: 'test-results/results.xml', allowEmptyResults: true
+            
+            // Archive test artifacts (screenshots, videos, traces)
+            archiveArtifacts artifacts: 'test-results/**/*', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'playwright-report/**/*', allowEmptyArchive: true
+            
+            // Publish HTML report
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'playwright-report',
+                reportFiles: 'index.html',
+                reportName: 'Playwright Test Report',
+                reportTitles: 'Playwright Test Report'
+            ])
+        }
+        
+        success {
+            echo '✅ All tests passed successfully!'
+        }
+        
+        failure {
+            echo '❌ Tests failed. Check the Playwright Test Report for details.'
+        }
+        
+        cleanup {
+            echo 'Cleaning up workspace...'
+            cleanWs()
+        }
+    }
+}
