@@ -33,12 +33,61 @@ Ensure Jenkins agents have sufficient resources:
 ## Jenkins Pipeline Files
 
 ### Jenkinsfile
-The main pipeline configuration file that defines:
+The main parameterized pipeline configuration file that defines:
+- **Build Parameters**: Configurable options for browser, test suite, and execution mode
 - **Checkout**: Retrieves code from Git repository
 - **Install Dependencies**: Installs npm packages using `npm ci`
 - **Install Playwright Browsers**: Installs required browsers (Chromium, Firefox, WebKit)
-- **Run Tests**: Executes Playwright tests
+- **Run Tests**: Executes Playwright tests with selected parameters
 - **Post Actions**: Publishes reports and archives artifacts
+
+### Jenkinsfile.parameterized
+Enhanced parameterized version with additional features:
+- All features from main Jenkinsfile
+- Display build parameters summary
+- Environment selection (production, staging, development)
+- Trace generation control
+- Detailed build summary
+
+### Jenkinsfile.parallel
+Parallel execution variant:
+- Runs tests simultaneously across multiple browsers
+- Faster execution for comprehensive testing
+
+### Jenkinsfile.docker
+Docker-based execution:
+- Uses official Playwright Docker image
+- No browser installation needed
+
+## Build Parameters
+
+The parameterized Jenkinsfile supports the following build parameters:
+
+### Browser Selection
+- **Name**: `BROWSER`
+- **Type**: Choice
+- **Options**: all, chromium, firefox, webkit, mobile-chrome, mobile-safari
+- **Description**: Select which browser to run tests on
+
+### Test Suite Selection
+- **Name**: `TEST_SUITE`
+- **Type**: Choice
+- **Options**: all, booking, login, checkout, responsive-login
+- **Description**: Select specific test suite to run
+
+### Execution Modes
+- **HEADED_MODE**: Run tests with browser UI visible (default: false)
+- **DEBUG_MODE**: Run tests in debug mode for troubleshooting (default: false)
+
+### Performance Tuning
+- **WORKERS**: Number of parallel workers (empty = default from config)
+- **RETRIES**: Number of retries for failed tests (empty = default from config)
+
+### Additional Options
+- **UPDATE_SNAPSHOTS**: Update visual snapshots during test run (default: false)
+- **GREP**: Run tests matching specific pattern, e.g., "@smoke" (empty = all tests)
+- **ENVIRONMENT**: Target environment - production, staging, or development
+- **GENERATE_TRACE**: Generate trace files for all tests (default: false)
 
 ## Setting Up the Jenkins Job
 
@@ -48,14 +97,42 @@ The main pipeline configuration file that defines:
 3. Choose **Git** as SCM
 4. Enter repository URL: `https://github.com/qascript20/playwright-mcp-demo.git`
 5. Set **Branch Specifier**: `*/main`
-6. Set **Script Path**: `jenkins/Jenkinsfile`
+6. Set **Script Path**: `jenkins/Jenkinsfile` (or `jenkins/Jenkinsfile.parameterized`)
 7. Save and build
+
+**Note**: After the first build, the parameters will be available on subsequent builds via "Build with Parameters"
 
 ### Option 2: Direct Pipeline Script
 1. Create a new Pipeline job in Jenkins
 2. Under **Pipeline** section, select **Pipeline script**
 3. Copy the contents of `Jenkinsfile` into the script editor
 4. Save and build
+
+## Using Build Parameters
+
+After the initial build, you can use "Build with Parameters" to customize test execution:
+
+### Example 1: Run only Chromium tests
+- Browser: `chromium`
+- Test Suite: `all`
+- Other parameters: default
+
+### Example 2: Run smoke tests on all browsers
+- Browser: `all`
+- Test Suite: `all`
+- Grep: `@smoke`
+
+### Example 3: Debug specific test suite
+- Browser: `chromium`
+- Test Suite: `login`
+- Debug Mode: `true`
+- Headed Mode: `true`
+
+### Example 4: Run with custom workers
+- Browser: `all`
+- Test Suite: `all`
+- Workers: `2`
+- Retries: `3`
 
 ## Environment Variables
 
@@ -66,14 +143,33 @@ The pipeline sets the following environment variables:
 
 ## Test Execution
 
-### Running All Tests
-The pipeline runs all tests by default using:
+### With Build Parameters (Recommended)
+Use "Build with Parameters" to customize test execution without modifying the pipeline:
+
+**Quick Smoke Tests:**
+- Browser: `chromium`
+- Grep: `@smoke`
+- Workers: `4`
+
+**Full Regression:**
+- Browser: `all`
+- Test Suite: `all`
+- Retries: `2`
+
+**Debugging Failed Tests:**
+- Browser: `chromium`
+- Test Suite: `login`
+- Headed Mode: `✓`
+- Debug Mode: `✓`
+
+### Without Parameters (Legacy)
+For non-parameterized pipelines, tests run with default settings:
 ```bash
 npm run test
 ```
 
-### Running Specific Test Suites
-To run specific tests, modify the "Run Playwright Tests" stage:
+### Manual Command Customization
+To run specific tests in non-parameterized pipelines, modify the "Run Playwright Tests" stage:
 
 ```groovy
 // Run only booking tests

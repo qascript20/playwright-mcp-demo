@@ -42,16 +42,27 @@ pipeline {
             defaultValue: '',
             description: 'Run tests matching this grep pattern (e.g., "@smoke")'
         )
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['production', 'staging', 'development'],
+            description: 'Environment to run tests against'
+        )
+        booleanParam(
+            name: 'GENERATE_TRACE',
+            defaultValue: false,
+            description: 'Generate trace files for all tests'
+        )
     }
     
     tools {
-        nodejs 'NodeJS' // Configure NodeJS installation in Jenkins Global Tool Configuration
+        nodejs 'NodeJS'
     }
     
     environment {
         CI = 'true'
         HOME = "${WORKSPACE}"
         PLAYWRIGHT_BROWSERS_PATH = "${WORKSPACE}/ms-playwright"
+        TEST_ENV = "${params.ENVIRONMENT}"
     }
     
     stages {
@@ -59,6 +70,26 @@ pipeline {
             steps {
                 echo 'Checking out code...'
                 checkout scm
+            }
+        }
+        
+        stage('Display Build Parameters') {
+            steps {
+                script {
+                    echo "=========================================="
+                    echo "Build Parameters:"
+                    echo "  Browser: ${params.BROWSER}"
+                    echo "  Test Suite: ${params.TEST_SUITE}"
+                    echo "  Headed Mode: ${params.HEADED_MODE}"
+                    echo "  Debug Mode: ${params.DEBUG_MODE}"
+                    echo "  Workers: ${params.WORKERS ?: 'default'}"
+                    echo "  Retries: ${params.RETRIES ?: 'default'}"
+                    echo "  Update Snapshots: ${params.UPDATE_SNAPSHOTS}"
+                    echo "  Grep Pattern: ${params.GREP ?: 'none'}"
+                    echo "  Environment: ${params.ENVIRONMENT}"
+                    echo "  Generate Trace: ${params.GENERATE_TRACE}"
+                    echo "=========================================="
+                }
             }
         }
         
@@ -124,7 +155,14 @@ pipeline {
                         testCommand += " --grep='${params.GREP}'"
                     }
                     
-                    echo "Running command: ${testCommand}"
+                    // Add trace
+                    if (params.GENERATE_TRACE) {
+                        testCommand += ' --trace=on'
+                    }
+                    
+                    echo "=========================================="
+                    echo "Executing: ${testCommand}"
+                    echo "=========================================="
                     sh testCommand
                 }
             }
@@ -152,14 +190,28 @@ pipeline {
                 reportName: 'Playwright Test Report',
                 reportTitles: 'Playwright Test Report'
             ])
+            
+            // Build summary
+            script {
+                def summary = """
+                ========================================
+                Build Summary:
+                  Browser: ${params.BROWSER}
+                  Test Suite: ${params.TEST_SUITE}
+                  Environment: ${params.ENVIRONMENT}
+                  Status: ${currentBuild.result ?: 'SUCCESS'}
+                ========================================
+                """
+                echo summary
+            }
         }
         
         success {
-            echo 'Tests passed successfully!'
+            echo '✅ Tests passed successfully!'
         }
         
         failure {
-            echo 'Tests failed. Check the Playwright Test Report for details.'
+            echo '❌ Tests failed. Check the Playwright Test Report for details.'
         }
         
         cleanup {
